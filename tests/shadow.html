@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>nada clicado</title>
+  <style>
+    body { margin: 40px; font: 20px system-ui; }
+    button { display: block; margin: 30px 0; padding: 20px 40px; font: inherit; }
+  </style>
+</head>
+<body>
+  <!-- Mesmo arranjo do player da Disney+: botão dentro de shadow root dentro de shadow root. -->
+  <button id="fora">Fora</button>
+  <casca-aberta></casca-aberta>
+
+  <script>
+    const mark = (name) => () => { document.title = `clicou ${name}`; };
+    document.getElementById('fora').addEventListener('click', mark('fora'));
+
+    customElements.define('casca-fechada', class extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'closed' });
+        root.innerHTML = '<style>button { display: block; margin: 30px 0; padding: 20px 40px; font: inherit; }</style><button>Dentro da fechada</button>';
+        root.querySelector('button').addEventListener('click', mark('fechada'));
+      }
+    });
+
+    customElements.define('casca-aberta', class extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = '<style>button { display: block; margin: 30px 0; padding: 20px 40px; font: inherit; }</style><button>Dentro da aberta</button><casca-fechada></casca-fechada>';
+        root.querySelector('button').addEventListener('click', mark('aberta'));
+      }
+    });
+  </script>
+</body>
+</html>

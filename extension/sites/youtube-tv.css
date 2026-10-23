@@ -1,0 +1,7 @@
+/* YouTube TV: ajustes para o Firefox.
+
+   Cada item do menu lateral é um ícone e um rótulo lado a lado, com larguras em frações da tela.
+   Em tamanho de janela "quebrado" a soma arredonda um fio acima da largura do item no Firefox e
+   o rótulo cai para a linha de baixo, embaralhando o menu inteiro. Proibir a quebra resolve. */
+ytlr-avatar-lockup { white-space: nowrap !important; }
+ytlr-avatar-lockup > * { white-space: normal; }

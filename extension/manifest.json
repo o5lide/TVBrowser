@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "name": "TV Browser",
+  "version": "0.1.0",
+  "description": "Navegação por controle, teclado virtual e tela inicial de TV em cima do Firefox.",
+  "browser_specific_settings": {
+    "gecko": { "id": "tvbrowser@isaac.local" }
+  },
+  "permissions": ["<all_urls>", "tabs", "storage", "webRequest", "webRequestBlocking"],
+  "background": {
+    "scripts": ["tv/base.js", "tv/icons.js", "tv/sound.js", "background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["tv/base.js", "tv/ui.js", "tv/pad.js", "tv/input.js", "tv/spatial.js", "tv/cursor.js", "tv/osk.js", "tv/menu.js", "tv/controls.js", "tv/floating.js", "tv/icons.js", "tv/main.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://www.youtube.com/tv*"],
+      "css": ["sites/youtube-tv.css"],
+      "run_at": "document_start"
+    }
+  ]
+}

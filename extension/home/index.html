@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>TV Browser</title>
+  <link rel="stylesheet" href="home.css">
+</head>
+<body class="intro">
+  <svg id="grid" viewBox="-500 -500 1000 1000" aria-hidden="true"></svg>
+  <div id="slab" aria-hidden="true"></div>
+  <div class="ticker top" aria-hidden="true"><div class="track"></div></div>
+  <div class="ticker bottom" aria-hidden="true"><div class="track"></div></div>
+  <div id="ghost" aria-hidden="true"></div>
+
+  <header>
+    <h1><span>TV</span>Browser</h1>
+    <time id="clock"></time>
+  </header>
+
+  <div id="orb" aria-hidden="true">
+    <div class="halo"></div>
+    <div class="lobe l1"></div>
+    <div class="lobe l2"></div>
+    <div class="lobe l3"></div>
+    <div class="core"></div>
+    <div class="ring r1"></div>
+    <div class="ring r2"></div>
+    <div id="mark"></div>
+  </div>
+
+  <nav id="wheel" data-tvb-noring></nav>
+
+  <section id="catalog" hidden>
+    <h2>Adicionar site</h2>
+    <div id="cards"></div>
+  </section>
+
+  <form id="add" hidden novalidate>
+    <label for="add-url">Novo site</label>
+    <input id="add-url" type="url" placeholder="ex.: twitch.tv" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button type="submit">Adicionar</button>
+      <button type="button" id="add-cancel">Cancelar</button>
+    </div>
+  </form>
+
+  <footer></footer>
+
+  <script src="../tv/base.js"></script>
+  <script src="../tv/ui.js"></script>
+  <script src="../tv/pad.js"></script>
+  <script src="../tv/input.js"></script>
+  <script src="../tv/spatial.js"></script>
+  <script src="../tv/cursor.js"></script>
+  <script src="../tv/osk.js"></script>
+  <script src="../tv/menu.js"></script>
+  <script src="../tv/controls.js"></script>
+  <script src="../tv/floating.js"></script>
+  <script src="../tv/icons.js"></script>
+  <script src="../tv/main.js"></script>
+  <script src="catalog.js"></script>
+  <script src="home.js"></script>
+</body>
+</html>
