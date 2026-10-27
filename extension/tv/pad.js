@@ -39,10 +39,11 @@ TV.pad = (() => {
     return row;
   }
 
-  // Chamado pela leitura do controle. Pelo Steam Input um DualSense chega como controle de Xbox:
+  // Chamado pela leitura do controle, com os ids de todos os controles ligados (o de verdade e o
+  // virtual do Steam aparecem juntos). Um DualSense só pelo Steam Input chega como controle de Xbox:
   // aí não há como saber, e a escolha manual resolve.
-  function seen(id) {
-    const now = /054c|dualsense|dualshock|playstation/i.test(id) ? 'playstation' : 'xbox';
+  function seen(ids) {
+    const now = ids.some((id) => /054c|dualsense|dualshock|playstation/i.test(id)) ? 'playstation' : 'xbox';
     if (now === detected) return;
     detected = now;
     changed();

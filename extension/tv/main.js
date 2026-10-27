@@ -152,14 +152,15 @@ TV.main = (() => {
 
   // Start + Select: o vídeo vai pra uma janelinha por cima de tudo. A página não pode abrir isso
   // sem um clique de verdade, então quem abre é o lançador (pipmode.py), a pedido do background.
-  function pictureInPicture() {
+  async function pictureInPicture() {
     if (!TV.api) return;
     if (!mainVideo() && !document.querySelector('iframe')) {
       TV.sfx('deny');
       return TV.ui.toast('Nenhum vídeo nesta página');
     }
-    TV.sfx('select');
-    TV.api.runtime.sendMessage({ type: 'pip' });
+    const refused = await TV.api.runtime.sendMessage({ type: 'pip' });
+    TV.sfx(refused ? 'deny' : 'select');
+    if (refused) TV.ui.toast(refused, 3000);
   }
 
   function goHome() {

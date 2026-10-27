@@ -160,12 +160,12 @@ TV.ui = (() => {
     if (ring) ring.classList.remove('on');
   }
 
-  function toast(text) {
+  function toast(text, ms = 900) {
     mount();
     toastEl.textContent = text;
     toastEl.classList.add('on');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('on'), 900);
+    toastTimer = setTimeout(() => toastEl.classList.remove('on'), ms);
   }
 
   // O ponteiro do mouse virtual (analógico esquerdo). Fica por último no shadow DOM: acima dos painéis.

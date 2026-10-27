@@ -11,10 +11,22 @@ Trocar a janela da frente é o próprio Firefox que faz, chamando o Windows (js-
 frente pode passar a vez, e um programa em segundo plano, como este lançador, o Windows barra.
 """
 import json
+import os
 import threading
 import time
 
 import tvbrowser
+
+
+def blocked():
+    """Por que o picture-in-picture não funciona aqui, ou None.
+
+    No Modo Jogo do Steam (gamescope) aparece uma janela por vez, em tela cheia: a janelinha abria,
+    mas ficava atrás do TV Browser (visto no Bazzite).
+    """
+    if os.environ.get("GAMESCOPE_WAYLAND_DISPLAY"):
+        return "A janela flutuante não funciona no Modo Jogo do Steam"
+    return None
 
 # Tudo abaixo roda no navegador, com `args` vindo do Python. "Toolkit:PictureInPicture" é o tipo da
 # janelinha do vídeo; handle() dá o identificador da janela no Windows, como texto ("0x6031e").
@@ -80,12 +92,30 @@ user32.close();
 return true;
 """
 
+# Fora do Windows a janelinha continua aceitando foco, e no KDE ela o pega um instante depois de
+# aparecer: a página deixava de ouvir o controle e o vídeo não pausava mais (visto no Bazzite).
+KEEP_FOCUS = """
+if (pips.includes(Services.focus.activeWindow)) {
+  main.focus();
+  main.gBrowser.selectedBrowser.focus();
+}
+return Services.focus.activeWindow === main;
+"""
+
 # Passa a frente da tela para outra janela (o Steam). Devolve se ela ficou mesmo na frente.
 HAND_OVER = WIN32 + """
 toFront(args.target);
 const done = inFront() === args.target;
 user32.close();
 return done;
+"""
+
+# Foco na página. O Firefox abre com a aba em branco e o foco na barra de endereço (escondida no
+# quiosque): a página ficava sem foco, o Firefox não entregava o controle pra ela e o TV Browser só
+# respondia depois de um clique de mouse (visto no Bazzite).
+FOCUS_PAGE = """
+main.gBrowser.selectedBrowser.focus();
+return main.gBrowser.selectedBrowser.currentURI.spec;
 """
 
 # Fecha a janelinha (o vídeo volta pra página), desfaz o minimizar e devolve o foco à página.
@@ -139,6 +169,10 @@ class Pip:
                     import steam as steam_app
                     steam = steam_app.big_picture_window()
                 self.run(ARRANGE, away=self.windows, steam=steam, width=float(place["width"]), col=int(place["col"]), row=int(place["row"]))
+                if not self.windows:
+                    for _ in range(50):  # 5 s: o tempo de a janelinha tentar pegar o foco
+                        time.sleep(0.1)
+                        self.run(KEEP_FOCUS)
             finally:
                 self.quiet_until = time.monotonic() + 1.5
 
@@ -170,6 +204,19 @@ class Pip:
         finally:
             self.lock.release()
 
+    def focus_page(self, wait=10):
+        """Põe o foco na página, de novo assim que a aba em branco virar a tela inicial (ou o site)."""
+        deadline = time.monotonic() + wait
+        try:
+            while True:
+                with self.lock:
+                    url = self.run(FOCUS_PAGE)
+                if not url.startswith("about:") or time.monotonic() > deadline:
+                    return
+                time.sleep(0.3)
+        except (OSError, RuntimeError):
+            pass  # o Firefox fechou
+
     def show(self):
         """Traz o TV Browser pra frente, fechando a janelinha se houver."""
         handle = self.run(RESTORE)
@@ -181,6 +228,9 @@ class Pip:
         """Fica à espera dos pedidos da extensão até o Firefox fechar."""
         try:
             rdp, console = tvbrowser.open_console(self.port, self.process, "extension")
+            reason = blocked()
+            if reason:
+                rdp.evaluate(console, f"globalThis.pipBlocked = {json.dumps(reason)}")
             while True:
                 place = json.loads(rdp.evaluate(console, "nextLauncherRequest()"))
                 try:

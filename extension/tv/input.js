@@ -31,6 +31,18 @@ TV.input = (() => {
   ];
   const HAT = ['up', null, 'right', null, 'down', null, 'left', null]; // diagonais não movem nada
 
+  // O Steam Input repete o controle de verdade num controle virtual da Valve (28de:11ff), já com o
+  // mapeamento escolhido no Steam. O Firefox enxerga os dois, e cada aperto contava duas vezes (no
+  // Modo Jogo do Bazzite o foco pulava de dois em dois). Havendo o virtual, só ele vale.
+  const STEAM_VIRTUAL = /^28de-11ff-/i;
+  function connectedPads() {
+    try { return [...navigator.getGamepads()].filter((p) => p && p.connected); } catch { return []; }
+  }
+  function usablePads(pads = connectedPads()) {
+    const steam = pads.filter((p) => STEAM_VIRTUAL.test(p.id));
+    return steam.length ? steam : pads;
+  }
+
   const held = new Map(); // "indice:ação" -> quando repetir
   // Start + Select juntos = picture-in-picture. Por isso esses dois não agem ao apertar: o Start
   // abre o menu ao soltar, e o Select só leva à tela inicial se ficar segurado. Um toque no Select,
@@ -44,6 +56,14 @@ TV.input = (() => {
 
   function isDown(button) {
     return button !== undefined && (typeof button === 'object' ? button.pressed || button.value > 0.5 : button > 0.5);
+  }
+
+  // Gatilho (LT/RT no mapeamento padrão) só conta apertado de verdade. O controle do Xbox por
+  // Bluetooth no Linux chega com os gatilhos soltos em ~0,5 e `pressed` ligado (visto no Bazzite):
+  // no vídeo era voltar e avançar 10 s sem parar, e não dava pra pausar.
+  const TRIGGERS = new Set(['6', '7']);
+  function triggerDown(button) {
+    return button !== undefined && (typeof button === 'object' ? button.value : button) > 0.75;
   }
 
   function profileOf(pad) {
@@ -76,7 +96,8 @@ TV.input = (() => {
     const map = standard ? STANDARD : profile.buttons;
     const out = new Set();
     for (const index in map) {
-      if (isDown(pad.buttons[index])) out.add(map[index]);
+      const down = standard && TRIGGERS.has(index) ? triggerDown : isDown;
+      if (down(pad.buttons[index])) out.add(map[index]);
     }
     if (!standard) {
       genericDpad(pad, out);
@@ -96,12 +117,11 @@ TV.input = (() => {
     menu: 'menu', home: 'view', up: 'up', down: 'down', left: 'left', right: 'right',
   };
   function snapshot() {
-    let pad = null;
-    try { pad = [...navigator.getGamepads()].find((p) => p && p.connected); } catch {}
+    const [pad] = usablePads();
     if (!pad) return null;
     const standard = pad.mapping === 'standard';
     const pressed = new Set();
-    if (standard) STANDARD_KEYS.forEach((key, index) => isDown(pad.buttons[index]) && pressed.add(key));
+    if (standard) STANDARD_KEYS.forEach((key, index) => (TRIGGERS.has(String(index)) ? triggerDown : isDown)(pad.buttons[index]) && pressed.add(key));
     else for (const action of actionsOf(pad)) if (ACTION_KEYS[action]) pressed.add(ACTION_KEYS[action]);
     const right = standard ? [2, 3] : profileOf(pad).scroll || [];
     const amount = (index, key) => (standard ? (pad.buttons[index] || {}).value || 0 : Number(pressed.has(key)));
@@ -126,16 +146,10 @@ TV.input = (() => {
     // "visível" mesmo minimizada, e sem conferir o foco o TV Browser seguia obedecendo ao controle
     // enquanto a pessoa navegava no Steam ou jogava.
     if (document.hidden || !document.hasFocus()) return;
-    let pads;
-    try {
-      pads = navigator.getGamepads();
-    } catch {
-      return;
-    }
+    const pads = connectedPads();
+    if (pads.length) TV.pad.seen(pads.map((pad) => pad.id));
     const seen = new Set();
-    for (const pad of pads) {
-      if (!pad || !pad.connected) continue;
-      TV.pad.seen(pad.id);
+    for (const pad of usablePads(pads)) {
       const actions = actionsOf(pad);
       for (const action of actions) {
         const key = `${pad.index}:${action}`;

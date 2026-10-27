@@ -74,6 +74,7 @@ def main():
         profile = Path(tmp)
         launcher = subprocess.Popen([sys.executable, str(ROOT / "tvbrowser.py"), "--headless", "--profile", str(profile),
                                      "--url", f"http://127.0.0.1:{server.server_port}/video.html"])
+        port = None
         try:
             port = debugger_port(profile)
             time.sleep(8)  # extensão carregada, vídeo tocando, lançador já à espera de pedidos
@@ -100,7 +101,8 @@ def main():
             print("picture-in-picture pelo lançador:", "ok" if ok else "FALHOU")
             return 0 if ok else 1
         finally:
-            tvbrowser.kill(launcher)
+            # com a porta, fecha o próprio Firefox; matar só o lançador deixava o do Flatpak aberto
+            tvbrowser.kill(launcher, port)
 
 
 if __name__ == "__main__":

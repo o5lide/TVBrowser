@@ -84,6 +84,15 @@ def find_firefox(profile):
     return None
 
 
+def firefox_env():
+    """Ambiente do Firefox. O Steam no Linux abre os jogos com LC_ALL=C, e aí o Firefox fica em inglês
+    mesmo com o sistema em português (visto no Bazzite): sem esse LC_ALL vale o LANG da pessoa."""
+    env = os.environ.copy()
+    if sys.platform != "win32" and env.get("LC_ALL") in ("C", "POSIX"):
+        del env["LC_ALL"]
+    return env
+
+
 def free_port():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -145,13 +154,13 @@ class Rdp:
                 return packet.get("result")
 
 
-def open_console(port, process, where):
+def open_console(port, process, where, timeout=90):
     """Abre uma conexão de depuração e devolve (rdp, console) para rodar JavaScript lá dentro.
 
     where="chrome": o próprio navegador, com todos os privilégios (janelas, picture-in-picture).
     where="extension": a página de fundo da nossa extensão.
     """
-    sock = connect(port, process)
+    sock = connect(port, process, timeout)
     sock.settimeout(None)  # quem espera pedido da extensão fica parado aqui por horas
     rdp = Rdp(sock)
     rdp.receive()
@@ -217,12 +226,27 @@ def show_running():
         return False
 
 
-def kill(process):
+def kill(process, port=None):
     # No Windows o firefox.exe que abrimos é só um lançador; o navegador de verdade é filho dele.
     if sys.platform == "win32":
         subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True)
-    else:
-        process.terminate()
+        return
+    # No Flatpak o que abrimos é o `flatpak run`: matar ele deixa o Firefox vivo dentro da sandbox
+    # (aconteceu no Bazzite). Então primeiro o próprio Firefox é mandado fechar, pela porta de depuração.
+    if port:
+        rdp = None
+        try:
+            rdp, console = open_console(port, process, "chrome", timeout=5)
+            # esperar o "recebi": fechar a conexão antes disso cancela o pedido
+            rdp.request({"to": console, "type": "evaluateJSAsync", "text": "Services.startup.quit(Ci.nsIAppStartup.eForceQuit)"}, "resultID")
+            process.wait(timeout=15)
+            return
+        except (OSError, RuntimeError, StopIteration, subprocess.TimeoutExpired):
+            pass
+        finally:
+            if rdp:
+                rdp.sock.close()
+    process.terminate()
 
 
 def main():
@@ -260,26 +284,36 @@ def main():
         command.append("--kiosk")
     command.append(args.url or "about:blank")
 
-    process = subprocess.Popen(command)
+    process = subprocess.Popen(command, env=firefox_env())
     try:
         addon_id = install_extension(port, process)
     except Exception as error:
-        kill(process)
+        kill(process, port)
         sys.exit(f"Não consegui carregar a extensão: {error}")
 
     if args.check:
         print(f"ok: Firefox abriu e a extensão {addon_id} carregou")
-        kill(process)
+        kill(process, port)
         return 0
     # Start + Select: a extensão pede o picture-in-picture e quem executa é o lançador (pipmode.py).
     import pipmode
     floating = pipmode.Pip(port, process, windows=sys.platform == "win32" and not args.headless)
     threading.Thread(target=floating.serve, daemon=True).start()
+    threading.Thread(target=floating.focus_page, daemon=True).start()  # sem isso o controle esperava um clique
+    awake = None
+    if sys.platform != "win32" and not args.headless:
+        # protetor de tela do Steam por cima do filme: ver screensaver.py
+        import screensaver
+        awake = threading.Thread(target=screensaver.watch, args=(floating, process), daemon=True)
+        awake.start()
     if own_profile:
         instance_file().write_text(json.dumps({"port": port}), encoding="utf-8")
     try:
         if sys.platform != "win32" or args.headless:
-            return process.wait()
+            code = process.wait()
+            if awake:
+                awake.join(timeout=3)  # devolve o protetor de tela antes de sair
+            return code
 
         # Aberto pelo Big Picture: o Guia passa a frente pro Steam, Start + Select traz o TV Browser de
         # volta de onde ele estiver, e fechar devolve o foco ao Big Picture.
@@ -292,7 +326,12 @@ def main():
         return code
     finally:
         if own_profile:
-            instance_file().unlink(missing_ok=True)
+            # só se ainda for o nosso: um TV Browser fechando enquanto outro abre apagava o do novo
+            try:
+                if json.loads(instance_file().read_text(encoding="utf-8")).get("port") == port:
+                    instance_file().unlink()
+            except (OSError, ValueError):
+                pass
 
 
 if __name__ == "__main__":
